@@ -1,0 +1,505 @@
+from ocp_vscode import show, Camera
+from build123d import *
+from OCP.BRepFill import BRepFill_Filling
+from OCP.BRepOffset import BRepOffset_MakeOffset, BRepOffset_Skin
+from OCP.GeomAbs import GeomAbs_C0, GeomAbs_Arc
+from OCP.gp import gp_Vec, gp_Trsf, gp_Ax2, gp_Pnt, gp_Dir
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeWire, BRepBuilderAPI_MakeEdge
+from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism, BRepPrimAPI_MakeCylinder
+from OCP.GC import GC_MakeCircle
+import math
+
+THICKNESS = 1.0
+REFERENCE_DIR = gp_Vec(0, 0, 1)
+
+def make_solid_from_splines(pts_list, label="surface"):
+    print(f"  Building {label}...")
+    edges = [Edge.make_spline([Vector(*p) for p in pts]) for pts in pts_list]
+    filler = BRepFill_Filling()
+    for edge in edges:
+        filler.Add(edge.wrapped, GeomAbs_C0)
+    filler.Build()
+    if not filler.IsDone():
+        raise RuntimeError(f"BRepFill_Filling failed for {label}.")
+    face = Face(filler.Face())
+    centre = face.center()
+    normal = face.normal_at(centre)
+    normal_vec = gp_Vec(normal.X, normal.Y, normal.Z)
+    if normal_vec.Dot(REFERENCE_DIR) < 0:
+        face = Face(face.wrapped.Reversed())
+    offset = BRepOffset_MakeOffset()
+    offset.Initialize(face.wrapped, THICKNESS, 1e-3, BRepOffset_Skin, False, False, GeomAbs_Arc, True)
+    offset.MakeOffsetShape()
+    if not offset.IsDone():
+        raise RuntimeError(f"BRepOffset_MakeOffset failed for {label}.")
+    return Solid(offset.Shape())
+
+def fuse_solids(solids):
+    result = solids[0].wrapped
+    for s in solids[1:]:
+        f = BRepAlgoAPI_Fuse(result, s.wrapped)
+        f.Build()
+        if not f.IsDone():
+            raise RuntimeError("Fuse failed.")
+        result = f.Shape()
+    return result
+
+def make_closed_wire(pts):
+    return Wire([Line(pts[i], pts[(i+1) % len(pts)]) for i in range(len(pts))])
+
+def capped_loft(wire_list, label="loft"):
+    print(f"  Building {label}...")
+    gen = BRepOffsetAPI_ThruSections(True, True)
+    for w in wire_list:
+        gen.AddWire(w.wrapped)
+    gen.Build()
+    if not gen.IsDone():
+        raise RuntimeError(f"ThruSections failed for {label}.")
+    result = Solid(gen.Shape())
+    print(f"  {label} done.")
+    return result
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ALL SPLINE DATA (kept but suppressed)
+# ═══════════════════════════════════════════════════════════════════════════════
+s1_spline1_pts = [(25.411,35.37,17.066),(24.731,35.641,17.066),(24.042,35.914,17.066),(23.336,36.193,17.066),(22.604,36.479,17.066),(21.839,36.776,17.066),(21.03,37.086,17.066),(20.17,37.412,17.066),(19.251,37.757,17.066),(18.268,38.12,17.066),(17.236,38.495,17.066),(16.175,38.872,17.066),(15.104,39.241,17.066),(14.043,39.593,17.067),(13.012,39.918,17.067),(12.029,40.207,17.068),(11.114,40.45,17.069),(10.283,40.64,17.071),(9.528,40.781,17.073),(8.839,40.882,17.075),(8.206,40.947,17.077),(7.616,40.985,17.079),(7.059,41.001,17.082),(6.524,41.004,17.085),(6.0,41.0,17.087)]
+s1_spline2_pts = [(6.0,41.0,17.087),(6.0,36.568,19.271),(6.0,35.259,19.909),(6.0,33.763,20.628),(6.0,32.095,21.415),(6.0,30.271,22.255),(6.0,28.306,23.135),(6.0,26.217,24.043),(6.0,24.018,24.963),(6.0,21.725,25.886),(6.0,19.35,26.809),(6.0,16.905,27.731),(6.0,14.401,28.654),(6.0,11.85,29.576),(6.0,9.264,30.498),(6.0,6.649,31.42),(6.0,4.034,32.343)]
+s1_spline3_pts = [(6.0,4.034,32.343),(6.647,4.021,32.228),(7.305,4.008,32.111),(7.986,3.995,31.99),(8.701,3.981,31.865),(9.462,3.966,31.732),(10.279,3.95,31.59),(11.165,3.933,31.437),(12.13,3.915,31.272),(13.181,3.895,31.094),(14.301,3.874,30.904),(15.467,3.852,30.708),(16.658,3.83,30.508),(17.852,3.808,30.308),(19.026,3.786,30.111),(20.159,3.765,29.922),(21.228,3.745,29.743),(22.217,3.727,29.578),(23.131,3.71,29.425),(23.98,3.694,29.283),(24.776,3.68,29.15),(25.529,3.666,29.025),(26.25,3.652,28.904),(26.949,3.639,28.787),(27.638,3.626,28.672)]
+s1_spline4_pts = [(27.638,3.626,28.672),(27.566,6.032,27.939),(27.492,8.424,27.207),(27.414,10.785,26.477),(27.33,13.103,25.749),(27.239,15.361,25.025),(27.139,17.545,24.306),(27.026,19.641,23.593),(26.901,21.633,22.886),(26.761,23.508,22.189),(26.611,25.259,21.507),(26.455,26.878,20.851),(26.298,28.359,20.229),(26.145,29.696,19.65),(26.001,30.881,19.123),(25.869,31.91,18.657),(25.755,32.774,18.261),(25.663,33.472,17.94),(25.59,34.02,17.687),(25.534,34.441,17.494),(25.493,34.755,17.349),(25.463,34.983,17.244),(25.441,35.148,17.168),(25.425,35.27,17.112),(25.411,35.37,17.066)]
+s2_spline1_pts = s1_spline3_pts
+s2_spline2_pts = [(27.638,3.626,28.672),(27.411,3.462,28.708),(27.183,3.298,28.743),(26.956,3.134,28.779),(26.729,2.97,28.814),(26.501,2.806,28.85),(26.274,2.642,28.885),(26.047,2.477,28.921),(25.819,2.313,28.956)]
+s2_spline3_pts = [(25.819,2.313,28.956),(25.198,2.32,29.077),(24.567,2.326,29.199),(23.917,2.333,29.324),(23.237,2.34,29.456),(22.519,2.347,29.595),(21.753,2.355,29.743),(20.929,2.364,29.903),(20.037,2.373,30.075),(19.072,2.383,30.262),(18.05,2.393,30.46),(16.989,2.404,30.665),(15.908,2.415,30.874),(14.828,2.426,31.083),(13.767,2.437,31.289),(12.745,2.448,31.486),(11.78,2.458,31.673),(10.888,2.467,31.846),(10.064,2.475,32.005),(9.298,2.483,32.153),(8.581,2.49,32.292),(7.902,2.497,32.424),(7.252,2.504,32.549),(6.621,2.511,32.671),(6.0,2.517,32.791)]
+s2_spline4_pts = [(6.0,2.517,32.791),(6.0,2.707,32.735),(6.0,2.896,32.679),(6.0,3.086,32.623),(6.0,3.276,32.567),(6.0,3.465,32.511),(6.0,3.655,32.455),(6.0,3.844,32.399),(6.0,4.034,32.343)]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MIRROR TRANSFORM
+# ═══════════════════════════════════════════════════════════════════════════════
+mirror_trsf = gp_Trsf()
+mirror_trsf.SetMirror(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)))
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOFT 1 — Rectangle to Rectangle + Mirror
+# ═══════════════════════════════════════════════════════════════════════════════
+rect1_pts = [Vector(21.0,25.0,22.367), Vector(17.0,25.0,22.967), Vector(17.0,21.0,24.573), Vector(21.0,21.0,23.928)]
+rect2_pts = [Vector(22.6,26.0,13.4), Vector(16.6,26.0,13.4), Vector(16.6,20.0,13.4), Vector(22.6,20.0,13.4)]
+loft1 = capped_loft([make_closed_wire(rect1_pts), make_closed_wire(rect2_pts)], "loft1")
+loft1_mb = BRepBuilderAPI_Transform(loft1.wrapped, mirror_trsf, True)
+loft1_mb.Build()
+loft1_mirror = Solid(loft1_mb.Shape())
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOFT 2 — Three rectangle cross-sections + Mirror
+# ═══════════════════════════════════════════════════════════════════════════════
+loft2_r1 = [Vector(-14.404,36.416,17.978), Vector(-15.404,36.416,17.81), Vector(-15.367,35.237,17.062), Vector(-14.367,35.237,17.23)]
+loft2_r2 = [Vector(-14.496,21.0,24.958), Vector(-14.5,20.003,23.7), Vector(-15.5,20.003,23.532), Vector(-15.496,21.0,24.79)]
+loft2_r3 = [Vector(-14.588,3.584,30.055), Vector(-14.633,4.769,28.288), Vector(-15.633,4.769,28.12), Vector(-15.588,3.584,29.887)]
+
+loft2a = capped_loft([make_closed_wire(loft2_r1), make_closed_wire(loft2_r2)], "loft2a")
+loft2b = capped_loft([make_closed_wire(loft2_r2), make_closed_wire(loft2_r3)], "loft2b")
+
+loft2a_mb = BRepBuilderAPI_Transform(loft2a.wrapped, mirror_trsf, True)
+loft2a_mb.Build()
+loft2a_mirror = Solid(loft2a_mb.Shape())
+
+loft2b_mb = BRepBuilderAPI_Transform(loft2b.wrapped, mirror_trsf, True)
+loft2b_mb.Build()
+loft2b_mirror = Solid(loft2b_mb.Shape())
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOFT 3 — Multi-section column
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building loft 3...")
+
+profA = [Vector(1.9,8.238,31.478), Vector(1.9,4.238,32.478), Vector(-1.9,4.238,32.478), Vector(-1.9,8.238,31.478)]
+profB = [Vector(1.925,4.87,24.676), Vector(1.925,0.87,25.426), Vector(-1.925,0.87,25.426), Vector(-1.925,4.87,24.676)]
+profC = [Vector(1.95,4.0,16.888), Vector(1.95,0.0,17.388), Vector(-1.95,0.0,17.388), Vector(-1.95,4.0,16.888)]
+profD = [Vector(3.0,4.603,13.4), Vector(3.0,1.731,13.4), Vector(3.0,0.0,15.4),
+         Vector(-3.0,0.0,15.4), Vector(-3.0,1.731,13.4), Vector(-3.0,4.603,13.4)]
+
+loft3_upper = capped_loft([make_closed_wire(profA), make_closed_wire(profB), make_closed_wire(profC)], "loft3_upper")
+
+profC_6 = [
+    Vector(1.95, 4.0, 16.888),
+    Vector(1.95, 2.0, 17.138),
+    Vector(1.95, 0.0, 17.388),
+    Vector(-1.95, 0.0, 17.388),
+    Vector(-1.95, 2.0, 17.138),
+    Vector(-1.95, 4.0, 16.888),
+]
+loft3_lower = capped_loft([make_closed_wire(profC_6), make_closed_wire(profD)], "loft3_lower")
+
+print("Loft 3 done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTRUDED PROFILE — 4-point sketch extruded in -X direction
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building extruded profile...")
+
+p1 = Vector(3.0, -47.0, 22.92)
+p2 = Vector(3.0, -47.0, 13.4)
+p3 = Vector(3.0, -57.0, 13.4)
+p4 = Vector(3.0, -51.0, 19.641)
+
+profile_wire = make_closed_wire([p1, p2, p3, p4])
+
+face_builder = BRepBuilderAPI_MakeFace(profile_wire.wrapped)
+face_builder.Build()
+if not face_builder.IsDone():
+    raise RuntimeError("BRepBuilderAPI_MakeFace failed for extruded profile.")
+profile_face = face_builder.Face()
+
+prism = BRepPrimAPI_MakePrism(profile_face, gp_Vec(-1.9, 0, 0))
+prism.Build()
+if not prism.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakePrism failed for extruded profile.")
+extruded_solid = Solid(prism.Shape())
+
+extruded_mirror_mb = BRepBuilderAPI_Transform(extruded_solid.wrapped, mirror_trsf, True)
+extruded_mirror_mb.Build()
+extruded_mirror = Solid(extruded_mirror_mb.Shape())
+
+print("Extruded profile done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTRUDED CIRCLE — Centre (0, -39, 13.429), Dia 4.16, Extrude -Z by 14.273
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building extruded circle...")
+
+circle_centre = gp_Pnt(0.0, -39.0, 13.429)
+circle_dir = gp_Dir(0, 0, 1)  # +Z direction (which is -Z in your coord = upwards)
+circle_ax2 = gp_Ax2(circle_centre, circle_dir)
+
+circle_radius = 4.16 / 2.0  # 2.08
+circle_height = 14.273
+
+cylinder = BRepPrimAPI_MakeCylinder(circle_ax2, circle_radius, circle_height)
+cylinder.Build()
+if not cylinder.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakeCylinder failed.")
+extruded_circle = Solid(cylinder.Shape())
+
+print("Extruded circle done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPLINE PROFILE LOFTED TO CYLINDER BOTTOM
+# Spline profile → loft down to circle at cylinder bottom (Z=13.429+14.273=27.702)
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building spline-to-cylinder loft...")
+
+# Spline profile points (closed loop)
+spline_pts = [
+    Vector(-1.6, -38.976, 29.199),
+    Vector(-1.478, -38.364, 29.438),
+    Vector(-1.131, -37.845, 29.608),
+    Vector(-0.612, -37.522, 29.722),
+    Vector(0.0, -37.4, 29.722),
+    Vector(0.612, -37.522, 29.722),
+    Vector(1.131, -37.845, 29.608),
+    Vector(1.478, -38.364, 29.438),
+    Vector(1.6, -38.976, 29.199),
+    Vector(1.478, -39.588, 28.869),
+    Vector(1.131, -40.131, 28.564),
+    Vector(0.612, -40.478, 28.268),
+    Vector(-0.612, -40.478, 28.268),
+    Vector(-1.131, -40.131, 28.564),
+    Vector(-1.478, -39.588, 28.869),
+]
+# Close the spline by appending the first point
+spline_pts_closed = spline_pts + [spline_pts[0]]
+
+# Create closed spline wire
+spline_edge = Edge.make_spline(spline_pts_closed)
+spline_wire = Wire([spline_edge])
+
+# Create a circle wire at the cylinder bottom face (Z = 13.429 + 14.273 = 27.702)
+cyl_bottom_z = 13.429 + 14.273
+cyl_bottom_centre = gp_Pnt(0.0, -39.0, cyl_bottom_z)
+cyl_bottom_ax2 = gp_Ax2(cyl_bottom_centre, gp_Dir(0, 0, 1))
+circle_geom = GC_MakeCircle(cyl_bottom_ax2, circle_radius)
+circle_edge_builder = BRepBuilderAPI_MakeEdge(circle_geom.Value())
+circle_edge_builder.Build()
+circle_wire_builder = BRepBuilderAPI_MakeWire(circle_edge_builder.Edge())
+circle_wire_builder.Build()
+circle_wire = Wire(circle_wire_builder.Wire())
+
+# Loft from circle (cylinder bottom) to spline profile
+spline_to_cyl_loft = capped_loft([circle_wire, spline_wire], "spline_to_cylinder_loft")
+
+print("Spline-to-cylinder loft done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRIANGLE LOFT — Two triangles lofted + Mirror
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building triangle loft...")
+
+tri1_pts = [
+    Vector(-1.5, -39.5, 24.0),
+    Vector(-8.0, -39.5, 28.006),
+    Vector(-0.5, -39.5, 28.673),
+]
+tri2_pts = [
+    Vector(-1.5, -38.5, 24.0),
+    Vector(-8.0, -38.5, 28.506),
+    Vector(-0.5, -38.5, 29.173),
+]
+
+tri_loft = capped_loft([make_closed_wire(tri1_pts), make_closed_wire(tri2_pts)], "triangle_loft")
+
+tri_loft_mirror_mb = BRepBuilderAPI_Transform(tri_loft.wrapped, mirror_trsf, True)
+tri_loft_mirror_mb.Build()
+tri_loft_mirror = Solid(tri_loft_mirror_mb.Shape())
+
+print("Triangle loft done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTRUDED TRIANGLE — Sketch at X=-0.5, extrude to X=0.5
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building extruded triangle...")
+
+tri_ext_pts = [
+    Vector(-0.5, -39.5, 28.673),
+    Vector(-0.5, -43.645, 25.677),
+    Vector(-0.5, -40.5, 24.0),
+]
+
+tri_ext_wire = make_closed_wire(tri_ext_pts)
+
+tri_ext_face_builder = BRepBuilderAPI_MakeFace(tri_ext_wire.wrapped)
+tri_ext_face_builder.Build()
+if not tri_ext_face_builder.IsDone():
+    raise RuntimeError("BRepBuilderAPI_MakeFace failed for extruded triangle.")
+tri_ext_face = tri_ext_face_builder.Face()
+
+# Extrude from X=-0.5 to X=0.5 → vector (1.0, 0, 0)
+tri_ext_prism = BRepPrimAPI_MakePrism(tri_ext_face, gp_Vec(1.0, 0, 0))
+tri_ext_prism.Build()
+if not tri_ext_prism.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakePrism failed for extruded triangle.")
+extruded_triangle = Solid(tri_ext_prism.Shape())
+
+print("Extruded triangle done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTRUDED TRIANGLE 2 — Sketch at X=-0.5, extrude to X=0.5
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building extruded triangle 2...")
+
+tri_ext2_pts = [
+    Vector(-0.5, -38.5, 29.173),
+    Vector(-0.5, -37.5, 24.0),
+    Vector(-0.5, -30.333, 31.932),
+]
+
+tri_ext2_wire = make_closed_wire(tri_ext2_pts)
+
+tri_ext2_face_builder = BRepBuilderAPI_MakeFace(tri_ext2_wire.wrapped)
+tri_ext2_face_builder.Build()
+if not tri_ext2_face_builder.IsDone():
+    raise RuntimeError("BRepBuilderAPI_MakeFace failed for extruded triangle 2.")
+tri_ext2_face = tri_ext2_face_builder.Face()
+
+# Extrude from X=-0.5 to X=0.5 → vector (1.0, 0, 0)
+tri_ext2_prism = BRepPrimAPI_MakePrism(tri_ext2_face, gp_Vec(1.0, 0, 0))
+tri_ext2_prism.Build()
+if not tri_ext2_prism.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakePrism failed for extruded triangle 2.")
+extruded_triangle2 = Solid(tri_ext2_prism.Shape())
+
+print("Extruded triangle 2 done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# QUAD LOFT — Two 4-point profiles lofted + Mirror
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building quad loft...")
+
+quad1_pts = [
+    Vector(-17.0, -14.5, 25.0),
+    Vector(-17.0, -19.5, 30.431),
+    Vector(-17.0, -6.5, 31.0),
+    Vector(-17.0, -12.5, 25.0),
+]
+quad2_pts = [
+    Vector(-14.0, -14.5, 25.0),
+    Vector(-14.0, -20.5, 31.431),
+    Vector(-14.0, -6.5, 31.0),
+    Vector(-14.0, -12.5, 25.0),
+]
+
+quad_loft = capped_loft([make_closed_wire(quad1_pts), make_closed_wire(quad2_pts)], "quad_loft")
+
+quad_loft_mirror_mb = BRepBuilderAPI_Transform(quad_loft.wrapped, mirror_trsf, True)
+quad_loft_mirror_mb.Build()
+quad_loft_mirror = Solid(quad_loft_mirror_mb.Shape())
+
+print("Quad loft done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTRUDED CIRCLE 2 — Angled extrusion from centre to target point
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building extruded circle 2...")
+
+from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism as MakePrism2
+from OCP.GC import GC_MakeCircle as MakeCircle2
+from OCP.gp import gp_Circ, gp_Ax2 as gp_Ax2_2
+
+circ2_centre = gp_Pnt(-27.0, -13.5, 21.0)
+circ2_target = gp_Pnt(-13.0, -12.845, 19.418)
+circ2_radius = 3.424 / 2.0  # 1.712
+
+# Extrusion vector from centre to target
+circ2_vec = gp_Vec(circ2_target.X() - circ2_centre.X(),
+                   circ2_target.Y() - circ2_centre.Y(),
+                   circ2_target.Z() - circ2_centre.Z())
+
+# Circle normal aligned with extrusion direction
+circ2_dir = gp_Dir(circ2_vec)
+circ2_ax2 = gp_Ax2(circ2_centre, circ2_dir)
+
+# Build circle edge and wire
+circ2_geom = GC_MakeCircle(circ2_ax2, circ2_radius)
+circ2_edge_builder = BRepBuilderAPI_MakeEdge(circ2_geom.Value())
+circ2_edge_builder.Build()
+circ2_wire_builder = BRepBuilderAPI_MakeWire(circ2_edge_builder.Edge())
+circ2_wire_builder.Build()
+
+# Build face from wire
+circ2_face_builder = BRepBuilderAPI_MakeFace(circ2_wire_builder.Wire())
+circ2_face_builder.Build()
+if not circ2_face_builder.IsDone():
+    raise RuntimeError("BRepBuilderAPI_MakeFace failed for extruded circle 2.")
+
+# Extrude along the direction vector
+circ2_prism = BRepPrimAPI_MakePrism(circ2_face_builder.Face(), circ2_vec)
+circ2_prism.Build()
+if not circ2_prism.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakePrism failed for extruded circle 2.")
+extruded_circle2 = Solid(circ2_prism.Shape())
+
+print("Extruded circle 2 done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTRUDED 8-POINT PROFILE — Sketch at Y=-12.5, extrude to Y=-14.5, fuse with circle2
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building extruded 8-point profile...")
+
+oct_pts = [
+    Vector(-27.0, -12.5, 22.0),
+    Vector(-27.0, -12.5, 24.0),
+    Vector(-26.49, -12.5, 26.0),
+    Vector(-25.49, -12.5, 27.823),
+    Vector(-13.0, -12.5, 32.0),
+    Vector(0.0, -12.5, 34.218),
+    Vector(0.0, -12.5, 22.0),
+    Vector(-13.0, -12.5, 22.0),
+]
+
+oct_wire = make_closed_wire(oct_pts)
+
+oct_face_builder = BRepBuilderAPI_MakeFace(oct_wire.wrapped)
+oct_face_builder.Build()
+if not oct_face_builder.IsDone():
+    raise RuntimeError("BRepBuilderAPI_MakeFace failed for 8-point profile.")
+oct_face = oct_face_builder.Face()
+
+# Extrude from Y=-12.5 to Y=-14.5 → vector (0, -2.0, 0)
+oct_prism = BRepPrimAPI_MakePrism(oct_face, gp_Vec(0, -2.0, 0))
+oct_prism.Build()
+if not oct_prism.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakePrism failed for 8-point profile.")
+extruded_oct = Solid(oct_prism.Shape())
+
+# Fuse with extruded_circle2
+fuse_oct_cyl = BRepAlgoAPI_Fuse(extruded_oct.wrapped, extruded_circle2.wrapped)
+fuse_oct_cyl.Build()
+if not fuse_oct_cyl.IsDone():
+    raise RuntimeError("Fuse failed for 8-point profile + circle2.")
+fused_oct_cyl = Solid(fuse_oct_cyl.Shape())
+
+print("Extruded 8-point profile done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HOLE IN FUSED BODY — Circle at (-27,-13.5,21), dia 1.779, cut to X=-18
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Building hole in fused body...")
+
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+
+hole_centre = gp_Pnt(-27.0, -13.5, 21.0)
+hole_target = gp_Pnt(-18.0, -13.5, 21.0)
+hole_radius = 1.779 / 2.0  # 0.8895
+
+# Direction from centre to target: +X
+hole_vec = gp_Vec(hole_target.X() - hole_centre.X(),
+                  hole_target.Y() - hole_centre.Y(),
+                  hole_target.Z() - hole_centre.Z())
+hole_dir = gp_Dir(hole_vec)
+hole_ax2 = gp_Ax2(hole_centre, hole_dir)
+
+# Build circle edge, wire, face
+hole_geom = GC_MakeCircle(hole_ax2, hole_radius)
+hole_edge_builder = BRepBuilderAPI_MakeEdge(hole_geom.Value())
+hole_edge_builder.Build()
+hole_wire_builder = BRepBuilderAPI_MakeWire(hole_edge_builder.Edge())
+hole_wire_builder.Build()
+hole_face_builder = BRepBuilderAPI_MakeFace(hole_wire_builder.Wire())
+hole_face_builder.Build()
+if not hole_face_builder.IsDone():
+    raise RuntimeError("BRepBuilderAPI_MakeFace failed for hole.")
+
+# Extrude the circle to create the cutting tool
+hole_prism = BRepPrimAPI_MakePrism(hole_face_builder.Face(), hole_vec)
+hole_prism.Build()
+if not hole_prism.IsDone():
+    raise RuntimeError("BRepPrimAPI_MakePrism failed for hole.")
+hole_solid = Solid(hole_prism.Shape())
+
+# Cut the hole from the fused body
+cut_op = BRepAlgoAPI_Cut(fused_oct_cyl.wrapped, hole_solid.wrapped)
+cut_op.Build()
+if not cut_op.IsDone():
+    raise RuntimeError("BRepAlgoAPI_Cut failed for hole.")
+fused_oct_cyl = Solid(cut_op.Shape())
+
+print("Hole in fused body done.")
+
+# Mirror the fused body about YZ plane (X=0)
+fused_oct_cyl_mirror_mb = BRepBuilderAPI_Transform(fused_oct_cyl.wrapped, mirror_trsf, True)
+fused_oct_cyl_mirror_mb.Build()
+fused_oct_cyl_mirror = Solid(fused_oct_cyl_mirror_mb.Shape())
+
+print("Fused body mirror done.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DISPLAY
+# ═══════════════════════════════════════════════════════════════════════════════
+print("Displaying...")
+all_solids = [
+    loft1, loft1_mirror,
+    loft2a, loft2b, loft2a_mirror, loft2b_mirror,
+    loft3_upper, loft3_lower,
+    extruded_solid, extruded_mirror,
+    extruded_circle,
+    spline_to_cyl_loft,
+    tri_loft, tri_loft_mirror,
+    extruded_triangle,
+    extruded_triangle2,
+    quad_loft, quad_loft_mirror,
+    fused_oct_cyl, fused_oct_cyl_mirror,
+]
+all_names = [
+    "loft_1", "loft_1_mirror",
+    "loft_2a", "loft_2b", "loft_2a_mirror", "loft_2b_mirror",
+    "loft_3_upper", "loft_3_lower",
+    "extruded_profile", "extruded_profile_mirror",
+    "extruded_circle",
+    "spline_to_cylinder_loft",
+    "triangle_loft", "triangle_loft_mirror",
+    "extruded_triangle",
+    "extruded_triangle2",
+    "quad_loft", "quad_loft_mirror",
+    "fused_oct_cyl", "fused_oct_cyl_mirror",
+]
+show(*all_solids, names=all_names, reset_camera=Camera.RESET)
+print("Done.")
