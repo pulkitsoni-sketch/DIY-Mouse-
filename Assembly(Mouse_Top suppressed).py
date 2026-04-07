@@ -20,19 +20,20 @@ PARTS_MAP = {
     "thumb_b": "thumb_b.stl",
     "wheel": "mouse_scroll_wheel.stl",
     "wheel_brace": "mouse_scroll_wheel_brace.stl",
-    "top": "top.stl",
-    "bottom": "bottom.stl",
+    "top": "mouse_top.stl",
+    "bottom": "mouse_bottom.stl",
 }
 
-# Suppression list
-SUPPRESS_PARTS = ["top", "bottom"]
+# --- UPDATED: Removed "bottom" from suppression list ---
+SUPPRESS_PARTS = ["top"]
 
-# Color palette for the viewer (R, G, B)
+# --- UPDATED: Added color for the bottom shell ---
 COLOURS = {
     "thumb_a": (230, 75, 75),    # Red
     "thumb_b": (230, 130, 50),   # Orange
     "wheel": (50, 200, 75),      # Green
-    "wheel_brace": (200, 200, 50) # Yellow
+    "wheel_brace": (200, 200, 50), # Yellow
+    "bottom": (100, 100, 100),   # Grey
 }
 
 def main():
@@ -43,12 +44,15 @@ def main():
 
     for name, filename in PARTS_MAP.items():
         if name in SUPPRESS_PARTS:
+            print(f"[-] Suppressing: {name}")
             continue
 
         path = DIR / filename
         if path.exists():
             shape = import_stl(str(path))
-            shape.move(Location()) # Apply identity transform
+            # If your bottom shell needs to be the origin, 
+            # ensure other parts are moved relative to it here.
+            shape.move(Location()) 
             
             faces.append(shape)
             parts_to_show[name] = shape
@@ -59,8 +63,10 @@ def main():
     if faces:
         # 1. Export the physical STL file
         assembly = Compound(faces)
-        export_stl(assembly, str(DIR / "mouse_assembly_partial.stl"))
-        print(f"\nAssembly exported to {DIR}/mouse_assembly_partial.stl")
+        # Renamed to 'full' for clarity
+        export_path = DIR / "mouse_assembly_full.stl"
+        export_stl(assembly, str(export_path))
+        print(f"\nAssembly exported to {export_path}")
 
         # 2. Show in OCP Viewer
         if HAS_VIEWER:
