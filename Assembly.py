@@ -25,7 +25,7 @@ PARTS_MAP = {
 }
 
 # --- UPDATED: Removed "bottom" from suppression list ---
-SUPPRESS_PARTS = ["top"]
+SUPPRESS_PARTS = []
 
 # --- UPDATED: Added color for the bottom shell ---
 COLOURS = {
