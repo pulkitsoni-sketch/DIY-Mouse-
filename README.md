@@ -1,5 +1,13 @@
 # DIY-Mouse-
-Each STL file was convert into .xyz (point cloud) files roughly 72k points were obtained from this 
-Imported STL file for each component into Fusion 360 then converted it into a Solid Body. Using the nodes from the triangles, fit splines were made using the nodes
-Wrote a Fusion Script in Python to extract the fit spline as a set of 101 points, roughly 4000 points were obtained from this 
-An attempt was made to peform surface fitting using these points obtained from the point cloud and the points from the fit spline but due to limitation in build123d still yet to figure out any solution  
+Each Stl part was imported into Fusion 360 and converted into Body
+Using the node location geometry for each part was created using 2d profile combined with extrusion, lofting or mirrors
+If the Body was too complex, Brep was used by finding the fit spline points for the surface on body using the node locations
+
+--- Validation Report ---
+Bottom shell     | Volume Error:  9.1904%  |  Surface Area Error:  7.4192%
+Top shell        | Volume Error:  3.6097%  |  Surface Area Error:  9.7882%
+Thumb button A   | Volume Error:  0.6278%  |  Surface Area Error:  3.0197%
+Thumb button B   | Volume Error:  2.0003%  |  Surface Area Error:  3.6340%
+Scroll wheel     | Volume Error:  2.0529%  |  Surface Area Error:  4.4442%
+Wheel brace      | Volume Error:  0.0034%  |  Surface Area Error:  0.0011%
+-------------------------
